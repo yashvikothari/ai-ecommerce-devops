@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: nexvion
-          image: <YOUR_DOCKERHUB_USERNAME>/nexvion:latest
+          image: yashvikothari/nexvion:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80
