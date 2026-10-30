@@ -29,8 +29,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: nexvion-config
-            - secretRef:
-                name: nexvion-secret
           resources:
             requests:
               cpu: "100m"
