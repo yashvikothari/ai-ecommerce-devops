@@ -1,0 +1,98 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
+        IMAGE_NAME = "${DOCKERHUB_CREDENTIALS_USR}/nexvion"
+        IMAGE_TAG  = "${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout Source') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build & Validate Static Assets') {
+            steps {
+                dir('application') {
+                    sh '''
+                        echo "Validating required Nexvion e-commerce files..."
+                        for file in index.html products.html payment.html style.css products.css payment.css script.js payment.js logo.png; do
+                            if [ ! -f "$file" ]; then
+                                echo "ERROR: Missing required file $file"
+                                exit 1
+                            fi
+                            echo "[OK] Found $file"
+                        done
+                    '''
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                dir('application') {
+                    sh '''
+                        echo "Running HTML & JavaScript validation checks..."
+                        grep -qi "<!DOCTYPE html>" index.html
+                        grep -qi "<!DOCTYPE html>" products.html
+                        grep -qi "<!DOCTYPE html>" payment.html
+                        docker run --rm -v $(pwd):/app -w /app node:20-alpine sh -c "node --check script.js && node --check payment.js"
+                        echo "[OK] All HTML and JS syntax checks passed!"
+                    '''
+                }
+            }
+        }
+
+        stage('Security Checks: Secret & Dependency Scan') {
+            steps {
+                sh 'mkdir -p security'
+                sh 'gitleaks detect --source . --no-git -v || true'
+                sh 'trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL application/ > security/trivy-fs-report.txt || true'
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:latest -f docker/Dockerfile ."
+            }
+        }
+
+        stage('Docker Image Scan') {
+            steps {
+                sh "trivy image --severity HIGH,CRITICAL ${IMAGE_NAME}:${IMAGE_TAG} > security/trivy-image-report.txt || true"
+            }
+        }
+
+        stage('Push Image to Registry') {
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
+                sh "docker push ${IMAGE_NAME}:latest"
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh "chmod +x scripts/*.sh"
+                sh "./scripts/deploy.sh ${IMAGE_TAG}"
+                sh "kubectl set image deployment/nexvion-app nexvion=${IMAGE_NAME}:${IMAGE_TAG} -n ecommerce"
+                sh "kubectl rollout status deployment/nexvion-app -n ecommerce --timeout=120s"
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                sh "./scripts/health-check.sh http://localhost:30080"
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'security/*.txt', allowEmptyArchive: true
+        }
+    }
+}

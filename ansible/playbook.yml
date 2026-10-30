@@ -1,0 +1,98 @@
+---
+- name: Configure Ubuntu 24.04 DevOps Platform for Nexvion
+  hosts: devops_node
+  become: yes
+
+  tasks:
+    - name: Install required system packages
+      apt:
+        name:
+          - docker.io
+          - docker-compose-v2
+          - openjdk-21-jdk
+          - nginx
+          - python3-pip
+          - wget
+          - curl
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Enable and start Docker & Nginx
+      systemd:
+        name: "{{ item }}"
+        enabled: yes
+        state: started
+      loop:
+        - docker
+        - nginx
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Download Jenkins 2026 GPG key
+      ansible.builtin.get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
+        dest: /etc/apt/keyrings/jenkins-keyring.asc
+        mode: '0644'
+
+    - name: Add Jenkins repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/jenkins.list
+        content: "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/\n"
+        mode: '0644'
+
+    - name: Install Jenkins on Ubuntu 24.04
+      ansible.builtin.apt:
+        name: jenkins
+        state: present
+        update_cache: yes
+
+    - name: Add Jenkins user to Docker group
+      ansible.builtin.user:
+        name: jenkins
+        groups: docker
+        append: yes
+
+    - name: Enable and start Jenkins
+      ansible.builtin.systemd:
+        name: jenkins
+        enabled: yes
+        state: started
+
+
+    - name: Install Trivy for Container & Dependency Scanning
+      shell: |
+        if ! command -v trivy > /dev/null 2>&1; then
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | tee /etc/apt/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/etc/apt/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | tee /etc/apt/sources.list.d/trivy.list
+          apt update && apt install -y trivy
+        fi
+
+    - name: Install Gitleaks for Secret Scanning
+      shell: |
+        if ! command -v gitleaks > /dev/null 2>&1; then
+          wget https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz -O /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks
+          chmod +x /usr/local/bin/gitleaks
+        fi
+
+    - name: Install K3s (Lightweight Kubernetes)
+      shell: |
+        if ! command -v kubectl > /dev/null 2>&1; then
+          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644" sh -
+          mkdir -p /home/ubuntu/.kube /var/lib/jenkins/.kube
+          cp /etc/rancher/k3s/k3s.yaml /home/ubuntu/.kube/config
+          cp /etc/rancher/k3s/k3s.yaml /var/lib/jenkins/.kube/config
+          chown -R ubuntu:ubuntu /home/ubuntu/.kube
+          chown -R jenkins:jenkins /var/lib/jenkins/.kube
+        fi
+
+    - name: Install Helm
+      shell: |
+        if ! command -v helm > /dev/null 2>&1; then
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        fi

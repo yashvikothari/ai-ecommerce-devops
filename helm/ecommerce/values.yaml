@@ -1,0 +1,9 @@
+replicaCount: 2
+image:
+  repository: <YOUR_DOCKERHUB_USERNAME>/nexvion
+  tag: "latest"
+  pullPolicy: Always
+service:
+  type: NodePort
+  port: 80
+  nodePort: 30080

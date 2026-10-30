@@ -1,0 +1,9 @@
+services:
+  nexvion-web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: nexvion-ecommerce
+    ports:
+      - "8081:80"
+    restart: unless-stopped

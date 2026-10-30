@@ -1,0 +1,48 @@
+
+# Credentials and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+*credentials*
+*secret*.yaml
+!*secret.example.yaml
+kubeconfig
+k3s.yaml
+.kube/
+
+# Terraform generated files and sensitive values
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Python and Node generated files
+__pycache__/
+*.pyc
+node_modules/
+dist/
+
+# Generated files and logs
+*.log
+*.tar.gz
+*.zip
+*.bak
+security/*-report.txt
+security/*-report.json
+
+# Local editor files
+.vscode/
+.idea/
+.DS_Store

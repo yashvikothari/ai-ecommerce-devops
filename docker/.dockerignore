@@ -1,0 +1,14 @@
+.git
+.gitignore
+*.md
+*.log
+docker/
+jenkins/
+terraform/
+ansible/
+kubernetes/
+helm/
+monitoring/
+logging/
+security/
+ai/

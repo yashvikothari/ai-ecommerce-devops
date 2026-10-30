@@ -1,0 +1,2 @@
+[devops_node]
+localhost ansible_connection=local
